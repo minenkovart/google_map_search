@@ -1,0 +1,44 @@
+[
+  {
+    "name": "Migdal Moshe Aviv",
+    "location": {
+      "lat": 32.0833871,
+      "lon": 34.8037261
+    }
+  },
+  {
+    "name": "Paz 1",
+    "location": {
+      "lat": 32.0846991,
+      "lon": 34.8009611
+    }
+  },
+  {
+    "name": "Paz 3",
+    "location": {
+      "lat": 32.0847435,
+      "lon": 34.8005054
+    }
+  },
+  {
+    "name": "Mugdal HaArmon",
+    "location": {
+      "lat": 32.8135222,
+      "lon": 34.9957064
+    }
+  },
+  {
+    "name": "Sela Checkpost",
+    "location": {
+      "lat": 32.7913137,
+      "lon": 35.0324102
+    }
+  },
+  {
+    "name": "Toyota",
+    "location": {
+      "lat": 31.7878891,
+      "lon": 35.1830371
+    }
+  }
+]
