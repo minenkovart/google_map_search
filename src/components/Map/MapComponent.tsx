@@ -36,6 +36,7 @@ export const MapComponent: React.FC<IMapComponent> = ({ google, areas, places })
     const onClearSearchPath = () => {
       setSearchPaths([]);
       setFoundAreas({});
+      setFoundPlaces([]);
       setIsSearchHighlightVisible(false);
     }
     
