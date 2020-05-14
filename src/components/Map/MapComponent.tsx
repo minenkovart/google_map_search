@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { Map, IProvidedProps, IMapProps, Polyline } from 'google-maps-react';
-import { IArea, IPlace } from '../../constants/shared_interfaces';
+import React, { useState, useEffect, useRef } from 'react';
+import { Map, IProvidedProps, IMapProps, Polyline, Polygon, Marker } from 'google-maps-react';
+import { IArea, IMarkerPlace } from '../../constants/shared_interfaces';
 // https://drive.google.com/file/d/194LKdI9HXm4tlxNJCJGN3EzDj14NuBPv
 
 const style = {
@@ -10,7 +10,7 @@ const style = {
 
   interface IMapComponent extends IProvidedProps {
     areas: IArea,
-    places: IPlace[],
+    places: IMarkerPlace[],
   }
 
   interface IPoint  {
@@ -20,22 +20,28 @@ const style = {
 
 export const MapComponent: React.FC<IMapComponent> = ({ google, areas, places }) =>  {
 
-
+    const searchPolygon = useRef(null);
     const [ mapCenter, setCenter ] = useState({
-        lat: 31.771959,
-        lng: 35.217018,
+        lat: 34.966894,
+        lng: 32.390046,
     });
 
     const [ searchPaths, setSearchPaths ] = useState<IPoint[]>([]);
+    const [ foundAreas, setFoundAreas ] = useState<IArea>({});
+    const [foundPlaces, setFoundPlaces ] = useState<IMarkerPlace[]>([]);
     const [ mapStartClickListener, setMapStartClickListener ] = useState<google.maps.MapsEventListener | undefined>(undefined);
+    const [ isSearchHighlightVisible, setIsSearchHighlightVisible ] = useState<boolean>(false);
+
 
     const onClearSearchPath = () => {
       setSearchPaths([]);
+      setFoundAreas({});
+      setIsSearchHighlightVisible(false);
     }
     
     const updatePath = (event:any): void => {
       let newPaths: IPoint[] = [];
-      newPaths.push({ lat: event.latLng.lat(), lng: event.latLng.lng()});
+      newPaths.push(event.latLng);
       setSearchPaths(searchPaths => searchPaths.concat(newPaths));
     }
 
@@ -67,24 +73,82 @@ export const MapComponent: React.FC<IMapComponent> = ({ google, areas, places })
         google.maps.event.removeListener(mapStartClickListener);
       }
       updatePath(event);
+      setIsSearchHighlightVisible(true);
       console.log('stop drawing!');
     };
 
+    const findAreas = (polygon: google.maps.Polygon) => {
+      const foundAreas: { [key:string]: number[][]} = {};
+      Object.keys(areas).forEach((area: string) => {
+        const result = areas[area].filter((latLng: number[]) => {
+         return google.maps.geometry.poly.containsLocation(
+           new google.maps.LatLng({ lat:latLng[0], lng: latLng[1]}), polygon);
+       }); 
+       if(result.length > 0) {
+         foundAreas[area] = result;
+       }
+     });
+     setFoundAreas(foundAreas);
+    }
+
+    const findPlaces = (polygon: google.maps.Polygon) => {
+      const foundPlaces: IMarkerPlace[] = places.filter((place: IMarkerPlace) => {
+        return google.maps.geometry.poly.containsLocation(
+          new google.maps.LatLng(place.location), polygon);
+       });
+       setFoundPlaces(foundPlaces);
+    };
+
+    useEffect( () => {
+       if(isSearchHighlightVisible) {
+         const polygon = (searchPolygon.current as any).polygon;
+        findAreas(polygon);
+        findPlaces(polygon);
+       }
+
+    }, [isSearchHighlightVisible]);
+
     return (
         <Map 
-        zoom={14}
+        zoom={9}
         style={style} 
         google={google} 
         initialCenter={mapCenter} 
         onReady={onMapReady}
         >
         {searchPaths.length > 1 && 
-            <Polyline
-            path={searchPaths}
-            onClick={stopDrawingSearchArea}
-            strokeColor="#0000FF"
-            strokeOpacity={0.6}
-            strokeWeight={4} />}
+        !isSearchHighlightVisible &&
+            <Polyline path={searchPaths}
+                      onClick={stopDrawingSearchArea}
+                      strokeColor="#0000FF"
+                      strokeOpacity={0.6}
+                      strokeWeight={4} 
+                      />}
+        {isSearchHighlightVisible && 
+            <Polygon  ref={searchPolygon}
+                      paths={searchPaths}
+                      strokeColor="#0000FF"
+                      strokeOpacity={0.3}
+                      strokeWeight={1}
+                      fillColor="#00FFFF"
+                      fillOpacity={0.35} 
+                      />}
+        {Object.keys(foundAreas).map(area =>
+            (<Polygon key={area}
+                      paths={foundAreas[area].map(pathPoint => ({ lat:pathPoint[0], lng: pathPoint[1]}))}
+                      strokeColor="#0000FF"
+                      strokeOpacity={0.4}
+                      strokeWeight={1}
+                      fillColor="#FF00FF"
+                      fillOpacity={0.8} />))}
+            { foundPlaces.length && foundPlaces.map( (place: IMarkerPlace) => {
+                return (
+                  <Marker 
+                          key={place.name}
+                          title={place.name}
+                          position={place.location} />)
+            })
+            }
         </Map>
       );
 };

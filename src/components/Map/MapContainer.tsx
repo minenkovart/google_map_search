@@ -2,14 +2,12 @@ import React, { PureComponent } from 'react';
 import { IProvidedProps } from 'google-maps-react';
 import { MapComponent } from './MapComponent';
 import areas from '../../assets/areas.json';
-import places from '../../assets/places.json';
-import { IArea, IPlace } from '../../constants/shared_interfaces';
-
-
+import importPlaces from '../../assets/places.json';
+import { IArea, IMarkerPlace } from '../../constants/shared_interfaces';
 
 interface IMapContainerComponentState {
  areas: IArea,
- places: IPlace[],
+ places: IMarkerPlace[],
 };
 
 export class MapContainerComponent extends 
@@ -17,7 +15,8 @@ PureComponent<IProvidedProps, IMapContainerComponentState> {
   
  state: IMapContainerComponentState = {
   areas,
-  places,
+  places: importPlaces.map( (place: { name: string, location: {lat:number, lon: number}}) => 
+  ({ name: place.name, location: { lat: place.location.lat, lng: place.location.lon }})),
  }
   
   componentDidMount() {
