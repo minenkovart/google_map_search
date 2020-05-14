@@ -77,13 +77,15 @@ export const MapComponent: React.FC<IMapComponent> = ({ google, areas, places })
       setIsSearchHighlightVisible(true);
       console.log('stop drawing!');
     };
+    
+    const isPolygonContains = (point: google.maps.LatLng, polygon: google.maps.Polygon) =>
+    google.maps.geometry.poly.containsLocation(point, polygon)
 
     const findAreas = (polygon: google.maps.Polygon) => {
       const foundAreas: { [key:string]: number[][]} = {};
       Object.keys(areas).forEach((area: string) => {
         const result = areas[area].filter((latLng: number[]) => {
-         return google.maps.geometry.poly.containsLocation(
-           new google.maps.LatLng({ lat:latLng[0], lng: latLng[1]}), polygon);
+         return isPolygonContains(new google.maps.LatLng({ lat:latLng[0], lng: latLng[1]}), polygon);
        }); 
        if(result.length > 0) {
          foundAreas[area] = result;
@@ -94,8 +96,7 @@ export const MapComponent: React.FC<IMapComponent> = ({ google, areas, places })
 
     const findPlaces = (polygon: google.maps.Polygon) => {
       const foundPlaces: IMarkerPlace[] = places.filter((place: IMarkerPlace) => {
-        return google.maps.geometry.poly.containsLocation(
-          new google.maps.LatLng(place.location), polygon);
+        return isPolygonContains(new google.maps.LatLng(place.location), polygon);
        });
        setFoundPlaces(foundPlaces);
     };
