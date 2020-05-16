@@ -1,7 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Map, IProvidedProps, IMapProps, Polyline, Polygon, Marker } from 'google-maps-react';
-import { IArea, IMarkerPlace } from '../../constants/shared_interfaces';
-// https://drive.google.com/file/d/194LKdI9HXm4tlxNJCJGN3EzDj14NuBPv
+import { 
+  Map, 
+  IProvidedProps, 
+  IMapProps, 
+  Polyline, 
+  Polygon, 
+  Marker, 
+  InfoWindow 
+} from 'google-maps-react';
+import { IArea, IMarkerPlace, IPoint } from '../../constants/shared_interfaces';
 
 const style = {
     width: '100%',
@@ -12,10 +19,11 @@ const style = {
     areas: IArea,
     places: IMarkerPlace[],
   }
-
-  interface IPoint  {
-    lat: number,
-    lng: number,
+ 
+  interface IMaxRemoteDistance {
+  pointFrom: IMarkerPlace | null,
+  pointTo: IMarkerPlace | null,
+  distance: number,
   }
 
 export const MapComponent: React.FC<IMapComponent> = ({ google, areas, places }) =>  {
@@ -28,6 +36,8 @@ export const MapComponent: React.FC<IMapComponent> = ({ google, areas, places })
 
     const [ searchPaths, setSearchPaths ] = useState<IPoint[]>([]);
     const [ foundAreas, setFoundAreas ] = useState<IArea>({});
+
+    const [ maxRemoteDistance, setMaxRemoteDistance ] = useState<IMaxRemoteDistance | null>(null);
     const [foundPlaces, setFoundPlaces ] = useState<IMarkerPlace[]>([]);
     const [ mapStartClickListener, setMapStartClickListener ] = useState<google.maps.MapsEventListener | undefined>(undefined);
     const [ isSearchHighlightVisible, setIsSearchHighlightVisible ] = useState<boolean>(false);
@@ -37,6 +47,7 @@ export const MapComponent: React.FC<IMapComponent> = ({ google, areas, places })
       setSearchPaths([]);
       setFoundAreas({});
       setFoundPlaces([]);
+      setMaxRemoteDistance(null);
       setIsSearchHighlightVisible(false);
     }
     
@@ -53,7 +64,8 @@ export const MapComponent: React.FC<IMapComponent> = ({ google, areas, places })
             clearSearchButton.textContent = 'Clear search';
             clearSearchButton.addEventListener('click', onClearSearchPath);
             startSearchButton.addEventListener('click', onStartSearch(map));
-      const mapControls: google.maps.MVCArray<Node>|undefined = map?.controls[google.maps.ControlPosition.TOP_CENTER];
+      const mapControls: google.maps.MVCArray<Node>|undefined = 
+      map?.controls[google.maps.ControlPosition.TOP_CENTER];
       mapControls?.push(startSearchButton);
       mapControls?.push(clearSearchButton);
     };
@@ -77,15 +89,15 @@ export const MapComponent: React.FC<IMapComponent> = ({ google, areas, places })
       setIsSearchHighlightVisible(true);
       console.log('stop drawing!');
     };
-    
-    const isPolygonContains = (point: google.maps.LatLng, polygon: google.maps.Polygon) =>
-    google.maps.geometry.poly.containsLocation(point, polygon)
 
+    const isPolygonContainsLocation = (point: IPoint, polygon: google.maps.Polygon) =>
+       google.maps.geometry.poly.containsLocation(new google.maps.LatLng(point), polygon);
+    
     const findAreas = (polygon: google.maps.Polygon) => {
       const foundAreas: { [key:string]: number[][]} = {};
       Object.keys(areas).forEach((area: string) => {
         const result = areas[area].filter((latLng: number[]) => {
-         return isPolygonContains(new google.maps.LatLng({ lat:latLng[0], lng: latLng[1]}), polygon);
+         return isPolygonContainsLocation({ lat:latLng[0], lng: latLng[1]}, polygon);
        }); 
        if(result.length > 0) {
          foundAreas[area] = result;
@@ -94,14 +106,82 @@ export const MapComponent: React.FC<IMapComponent> = ({ google, areas, places })
      setFoundAreas(foundAreas);
     }
 
+    const findMostRemotePlaces = (foundPlaces:IMarkerPlace[]) => {
+      let i: number;
+      let maxRemoteDistance: IMaxRemoteDistance = {
+        pointFrom: null,
+        pointTo: null,
+        distance: 0,
+      };
+      
+      const { LatLng, 
+              geometry: {
+                spherical: { 
+                computeDistanceBetween 
+              } 
+            } 
+          } = google.maps;
+      for(i = 0; i < foundPlaces.length; i++) {
+        const pointFrom = new LatLng(foundPlaces[i].location);
+        let j: number;
+        for( j = 0; j<foundPlaces.length; j++) {
+          if(j === i) {
+            continue; // skip current place
+          }
+          const pointTo = new LatLng(foundPlaces[j].location);
+          const distance: number = computeDistanceBetween(
+           pointFrom, pointTo);
+           if(maxRemoteDistance.distance < distance) {
+             maxRemoteDistance = {
+               distance,
+               pointFrom: foundPlaces[i],
+               pointTo: foundPlaces[j],
+             }
+           }
+        }
+      }
+      setMaxRemoteDistance(maxRemoteDistance);
+    }
+
     const findPlaces = (polygon: google.maps.Polygon) => {
-      const foundPlaces: IMarkerPlace[] = places.filter((place: IMarkerPlace) => {
-        return isPolygonContains(new google.maps.LatLng(place.location), polygon);
-       });
+      const foundPlaces: IMarkerPlace[] = places.filter((place: IMarkerPlace) =>
+      isPolygonContainsLocation(place.location, polygon));
+       findMostRemotePlaces(foundPlaces);
        setFoundPlaces(foundPlaces);
     };
 
-    useEffect( () => {
+    const calculateAndAvgWalkingTime = (start?: IPoint, end?: IPoint) => {
+      const { DirectionsService } = google.maps;
+      var directionsService = new DirectionsService();
+
+      directionsService.route({
+        origin: start,
+        destination: end,
+        travelMode: google.maps.TravelMode.WALKING
+      }, function(response, status) {
+        if (status === google.maps.DirectionsStatus.OK) {
+          console.log(response.routes[0].legs[0].duration.text);
+        } else {
+          window.alert('Directions request failed due to ' + status);
+        }
+      });
+    }
+
+    const showAvgWalkTime = (mapProps?: IMapProps, map?: google.maps.Map, event?: any) => {
+      // const infowindow = new google.maps.InfoWindow();
+      // infowindow.open(map); // trows error, investigating...
+      // infowindow.setPosition(event.latLng);
+      // console.log(map, event);
+    }
+
+    useEffect( () => { // calc avg walk time between most remote places,
+      if(maxRemoteDistance?.distance) {
+        const { pointFrom, pointTo } = maxRemoteDistance;
+        calculateAndAvgWalkingTime(pointFrom?.location, pointTo?.location);
+      } 
+    },[maxRemoteDistance]);
+
+    useEffect( () => { // searching for areas and places in search area;
        if(isSearchHighlightVisible) {
          const polygon = (searchPolygon.current as any).polygon;
         findAreas(polygon);
@@ -129,6 +209,7 @@ export const MapComponent: React.FC<IMapComponent> = ({ google, areas, places })
         {isSearchHighlightVisible && 
             <Polygon  ref={searchPolygon}
                       paths={searchPaths}
+                      onMouseover={showAvgWalkTime}
                       strokeColor="#0000FF"
                       strokeOpacity={0.3}
                       strokeWeight={1}
@@ -145,11 +226,20 @@ export const MapComponent: React.FC<IMapComponent> = ({ google, areas, places })
                       fillOpacity={0.8} />))}
             { foundPlaces.length && foundPlaces.map( (place: IMarkerPlace) => {
                 return (
-                  <Marker 
-                          key={place.name}
+                  <Marker key={place.name}
                           title={place.name}
                           position={place.location} />)
             })
+            }
+            { maxRemoteDistance?.distance &&
+               <Polyline path={[
+                 maxRemoteDistance.pointFrom?.location, 
+                 maxRemoteDistance.pointTo?.location
+                ]}
+               strokeColor="#FC3903"
+               strokeOpacity={2}
+               strokeWeight={1} 
+               />
             }
         </Map>
       );

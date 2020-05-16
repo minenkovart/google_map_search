@@ -4,7 +4,12 @@ export interface IArea {
     [key: string]: number[][]
   }
 
-  export interface IMarkerPlace extends IMarkerProps {
+export interface IPoint {
+    lat: number,
+    lng: number,
+  }
+
+export interface IMarkerPlace extends IMarkerProps {
     name: string;
-    location: {lat: number, lng: number };
+    location: IPoint;
   }
