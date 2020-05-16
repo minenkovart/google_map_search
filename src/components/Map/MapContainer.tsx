@@ -19,12 +19,6 @@ PureComponent<IProvidedProps, IMapContainerComponentState> {
   ({ name: place.name, location: { lat: place.location.lat, lng: place.location.lon }})),
  }
   
-  componentDidMount() {
-    const { areas, places } = this.state;
-    console.log(areas);
-    console.log(places);
-  }
-
   render() {
      const { areas, places } = this.state;
     return (<MapComponent 

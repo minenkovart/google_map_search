@@ -187,8 +187,12 @@ export const MapComponent: React.FC<IMapComponent> = ({ google, areas, places })
         findAreas(polygon);
         findPlaces(polygon);
        }
-
     }, [isSearchHighlightVisible]);
+    
+    useEffect(() => { // cleanup
+      onClearSearchPath();
+      return () => {}
+    },[])
 
     return (
         <Map 
